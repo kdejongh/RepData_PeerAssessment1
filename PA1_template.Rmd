@@ -1,20 +1,104 @@
 # Reproducible Research: Peer Assessment 1
 
+This assignment makes use of data from a personal activity monitoring device. This device collects data at 5 minute intervals through out the day. The data consists of two months of data from an anonymous individual collected during the months of October and November, 2012 and include the number of steps taken in 5 minute intervals each day.
 
 ## Loading and preprocessing the data
 
+The variables included in this dataset are:
 
+- steps: Number of steps taking in a 5-minute interval (missing values are coded as NA)
+- date: The date on which the measurement was taken in YYYY-MM-DD format
+- interval: Identifier for the 5-minute interval in which measurement was taken
+
+The dataset is stored in a comma-separated-value (CSV) file and there are a total of 17,568 observations in this dataset.
+
+```{r loadData, echo=TRUE, cache=TRUE}
+library(lubridate, warn.conflicts=FALSE)
+activityData <- read.csv("activity.csv")
+activityData <- transform(activityData, date=ymd(date))
+# get the data set without the missing values
+activityStepData <- subset(activityData, !is.na(activityData$steps))
+```
 
 ## What is mean total number of steps taken per day?
 
+The following histogram shows the total number of steps taken each day (missing values are ignored).
+The mean value of the total number of steps taken per day is displayed by a blue horizontal line.
+The values of mean and median total number of steps taken per day are written in blue and dark green text.
 
+```{r plotSteps, echo=TRUE, fig.width=9, fig.height=5}
+library(ggplot2, warn.conflicts=FALSE)
+totalStepData <- aggregate(activityStepData$steps, list(activityStepData$date), sum)
+colnames(totalStepData) <- c("day", "steps")
+meanTotalSteps <- mean(totalStepData$steps)
+medianTotalSteps <- median(totalStepData$steps)
+
+plot <- ggplot(totalStepData, aes(x=day))+labs(title="Total number of steps per day", x="Day", y="Num Steps")
+plot <- plot+geom_bar(aes(y=steps), stat="identity")
+plot <- plot+geom_line(aes(y=meanTotalSteps), colour="blue")
+plot <- plot+geom_text(aes(x=totalStepData$day[1], y=meanTotalSteps, label=sprintf("Mean num steps: %.2f", meanTotalSteps)), fontface="italic", size=4, colour="blue", vjust=-12, hjust=-0.1)
+plot+geom_text(aes(x=totalStepData$day[1], y=medianTotalSteps, label=sprintf("Median num steps: %.2f", medianTotalSteps)), fontface="italic", size=4, colour="darkgreen", vjust=-14, hjust=-0.1)
+```
 
 ## What is the average daily activity pattern?
 
+The following plot shows the 5-minute interval (x-axis) and the average number of steps taken, averaged across all days (y-axis).
 
+```{r dailyPatter, echo=TRUE, fig.width=9}
+intervalMeanData <- aggregate(activityStepData$steps, list(activityStepData$interval), mean)
+colnames(intervalMeanData) <- c("interval", "steps")
+# get the interval with the max value of steps
+maxInterval <- subset(intervalMeanData, intervalMeanData$steps == max(intervalMeanData$steps))
+
+plot <- ggplot(intervalMeanData, aes(x=as.numeric(interval)))
+plot <- plot+labs(title="Average number of steps per 5 min. interval", x="5 min. Interval", y="Num Steps")
+plot <- plot+geom_line(aes(y=steps))
+plot+geom_text(aes(x=as.numeric(maxInterval$interval), y=maxInterval$steps, label=sprintf("Max avg num steps: Interval %d with %.2f steps", maxInterval$interval, maxInterval$steps)), fontface="italic", size=4, colour="blue", vjust=0.1, hjust=-0.01)
+```
 
 ## Imputing missing values
 
+```{r missingValues, echo=TRUE}
+# get the data set with only the missing values
+activityNoStepData <- subset(activityData, is.na(activityData$steps))
+sprintf("There are %d records that have no number of steps defined.", length(activityNoStepData$steps))
+```
 
+To substitute the missing values the mean value for the interval across all days is taken. If no values are found for that interval 0 is taken.
+
+```{r substituteMissing, echo=TRUE, cache=TRUE}
+library(plyr, warn.conflicts=FALSE)
+activityNoStepData$steps <- apply(activityNoStepData, 1, function(x) { m <- mean(subset(activityStepData$steps, activityStepData$interval == x["interval"], "steps")); ifelse(is.nan(m), 0, m) })
+newActivityData <- arrange(rbind(activityStepData, activityNoStepData), date, interval)
+```
+
+The following plot is a histogram displaying the total number of steps taken each day.
+As in the first histogram above, the mean value of the total number of steps taken per day is displayed by a blue horizontal line and
+the values of mean and median total number of steps taken per day are written in blue and dark green text.
+
+The mean and median values of the first histogram (no missing values) are displayed next to the new values (substituted missing values). 
+As one can see the values for the data set with substituted missing values have decreased.
+
+```{r plotStepsNewActivity, echo=TRUE, fig.width=9, fig.height=5}
+newTotalStepData <- aggregate(newActivityData$steps, list(newActivityData$date), sum)
+colnames(newTotalStepData) <- c("day", "steps")
+meanNewTotalSteps <- mean(newTotalStepData$steps)
+medianNewTotalSteps <- median(newTotalStepData$steps)
+
+plot <- ggplot(newTotalStepData, aes(x=day))+labs(title="Total number of steps per day", x="Day", y="Num Steps")
+plot <- plot+geom_bar(aes(y=steps), stat="identity")
+plot <- plot+geom_line(aes(y=meanNewTotalSteps), colour="blue")
+plot <- plot+geom_text(aes(x=newTotalStepData$day[1], y=meanNewTotalSteps, label=sprintf("Mean num steps: %.2f (without missing values: %.2f)", meanNewTotalSteps, meanTotalSteps)), fontface="italic", size=4, colour="blue", vjust=-12, hjust=-0.1)
+plot+geom_text(aes(x=newTotalStepData$day[1], y=medianNewTotalSteps, label=sprintf("Median num steps: %.2f (without missing values: %.2f)", medianNewTotalSteps, medianTotalSteps)), fontface="italic", size=4, colour="darkgreen", vjust=-14, hjust=-0.1)
+```
 
 ## Are there differences in activity patterns between weekdays and weekends?
+
+```{r activityPatterns, echo=TRUE, cache=TRUE}
+newActivityData$day <- factor(apply(newActivityData, 1, function(x) { d <- wday(x["date"]); ifelse(d == 1 | d == 7, "weekend", "weekday") }))
+```
+
+The following plots shows the 5-minute interval (x-axis) and the average number of steps taken, averaged across all weekend days (y-axis)[plot 1] and across all weekdays [plot 2].
+
+```{r plotActivityPatterns, echo=TRUE}
+```
