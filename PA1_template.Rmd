@@ -30,6 +30,7 @@ The values of mean and median total number of steps taken per day are written in
 library(ggplot2, warn.conflicts=FALSE)
 totalStepData <- aggregate(activityStepData$steps, list(activityStepData$date), sum)
 colnames(totalStepData) <- c("day", "steps")
+
 meanTotalSteps <- mean(totalStepData$steps)
 medianTotalSteps <- median(totalStepData$steps)
 
@@ -56,6 +57,8 @@ plot <- plot+geom_line(aes(y=steps))
 plot+geom_text(aes(x=as.numeric(maxInterval$interval), y=maxInterval$steps, label=sprintf("Max avg num steps: Interval %d with %.2f steps", maxInterval$interval, maxInterval$steps)), fontface="italic", size=4, colour="blue", vjust=0.1, hjust=-0.01)
 ```
 
+Most activity happens in the interval after 835 minutes which is around 14:00.
+
 ## Imputing missing values
 
 ```{r missingValues, echo=TRUE}
@@ -64,7 +67,7 @@ activityNoStepData <- subset(activityData, is.na(activityData$steps))
 sprintf("There are %d records that have no number of steps defined.", length(activityNoStepData$steps))
 ```
 
-To substitute the missing values the mean value for the interval across all days is taken. If no values are found for that interval 0 is taken.
+To substitute the missing values for an interval the mean value of that interval across all days is taken. If no values are found for that interval (i.e. no steps were measured for that interval) 0 is taken.
 
 ```{r substituteMissing, echo=TRUE, cache=TRUE}
 library(plyr, warn.conflicts=FALSE)
@@ -94,11 +97,22 @@ plot+geom_text(aes(x=newTotalStepData$day[1], y=medianNewTotalSteps, label=sprin
 
 ## Are there differences in activity patterns between weekdays and weekends?
 
+A new factor column for the classification "weekend" vs. "weekday" is added to the data set:
+
 ```{r activityPatterns, echo=TRUE, cache=TRUE}
 newActivityData$day <- factor(apply(newActivityData, 1, function(x) { d <- wday(x["date"]); ifelse(d == 1 | d == 7, "weekend", "weekday") }))
 ```
 
-The following plots shows the 5-minute interval (x-axis) and the average number of steps taken, averaged across all weekend days (y-axis)[plot 1] and across all weekdays [plot 2].
+The following plots shows the 5-minute interval (x-axis) and the average number of steps taken (y-axis), averaged across all weekdays [plot 1] and across all weekend days [plot 2].
 
 ```{r plotActivityPatterns, echo=TRUE}
+intervalMeanData <- aggregate(newActivityData$steps, list(newActivityData$day, newActivityData$interval), mean)
+colnames(intervalMeanData) <- c("day", "interval", "steps")
+
+plot <- ggplot(intervalMeanData, aes(x=as.numeric(interval)))
+plot <- plot+labs(title="Average number of steps per 5 min. interval (weekday vs. weekend)", x="5 min. Interval", y="Num Steps")
+plot <- plot+facet_wrap(~ day, nrow=2, ncol=1)
+plot+geom_line(aes(y=steps))
 ```
+
+As one can see people are more active on the weekend than on weekdays (altough on weekdays they are more active before 10:00). 
